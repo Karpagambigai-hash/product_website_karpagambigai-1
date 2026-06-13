@@ -60,7 +60,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // Use setTimeout to prevent deadlocks
+      // Use setTimeout to prevent deadlocks during auth state changes
       setTimeout(async () => {
         if (session?.user) {
           handleUserSync(session.user);
@@ -153,7 +153,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (error) throw error;
     } catch (error: any) {
       console.error('Google Auth Error:', error.message);
-      alert(`Authentication Error: ${error.message}. Please ensure Google Provider is enabled in Supabase Dashboard.`);
+      alert(`Authentication Error: ${error.message}. Please ensure Google Provider is enabled in Supabase Dashboard and Redirect URLs are configured.`);
     }
   };
 

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, CreditCard, Banknote, CheckCircle2, MapPin, Smartphone, SmartphoneNfc, Wallet, QrCode, ExternalLink, ShieldCheck } from 'lucide-react';
+import { X, CreditCard, Banknote, CheckCircle2, MapPin, Smartphone, SmartphoneNfc, Wallet, QrCode, ExternalLink, ShieldCheck, AlertCircle } from 'lucide-react';
 import { CartItem, PaymentMethod, OnlineProvider } from '../types';
 
 interface CheckoutModalProps {
@@ -17,14 +17,41 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, i
   const [isProcessing, setIsProcessing] = useState(false);
   const [showGateway, setShowGateway] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const tax = subtotal * 0.12;
   const total = subtotal + tax;
 
+  // Generate UPI Deep Link for automatic app opening
+  const getUPILink = () => {
+    const payeeVPA = "shophub@upi"; // Mock VPA for demonstration
+    const payeeName = "ShopHub Premium";
+    const transactionNote = `Order_${Math.random().toString(36).substr(2, 6)}`;
+    const amount = total.toFixed(2);
+    
+    // Standard UPI URI Scheme
+    let baseUri = `upi://pay?pa=${payeeVPA}&pn=${encodeURIComponent(payeeName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
+    
+    // Add specific provider flags if needed
+    if (onlineProvider === 'GPay') baseUri += '&mode=02&orgid=159765';
+    if (onlineProvider === 'PhonePe') baseUri += '&mode=04&orgid=159766';
+    
+    return baseUri;
+  };
+
   const handleStartPayment = () => {
     if (paymentMethod === 'Online Payment') {
       setShowGateway(true);
+      
+      // Attempt to open the payment app automatically
+      if (onlineProvider !== 'Card') {
+        const upiLink = getUPILink();
+        // Use a slight delay to ensure the UI updates before the redirect attempt
+        setTimeout(() => {
+          window.location.href = upiLink;
+        }, 100);
+      }
     } else {
       processOrder();
     }
@@ -32,6 +59,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, i
 
   const processOrder = () => {
     setIsProcessing(true);
+    setError(null);
+    
     setTimeout(() => {
       setIsProcessing(false);
       setIsSuccess(true);
@@ -105,27 +134,42 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, i
 
                 <div className="text-center mb-8">
                   <p className="text-slate-500 font-bold mb-1">Paying to ShopHub</p>
-                  <h3 className="text-4xl font-black">₹{total.toLocaleString()}</h3>
+                  <h3 className="text-4xl font-black text-indigo-600">₹{total.toLocaleString()}</h3>
                 </div>
 
                 <div className="bg-slate-50 dark:bg-slate-800 rounded-3xl p-8 mb-8 flex flex-col items-center border-2 border-dashed border-slate-200 dark:border-slate-700">
-                  {onlineProvider === 'UPI' ? (
-                    <>
-                      <QrCode className="w-32 h-32 text-slate-900 dark:text-white mb-4" />
-                      <p className="text-sm font-bold">Scan QR to pay with any UPI app</p>
-                    </>
+                  {onlineProvider === 'Card' ? (
+                    <div className="w-full space-y-4">
+                      <div className="flex items-center gap-3 mb-4">
+                        <CreditCard className="w-6 h-6 text-indigo-600" />
+                        <span className="font-black text-sm">Credit / Debit Card</span>
+                      </div>
+                      <input type="text" placeholder="Card Number" className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-sm outline-none focus:border-indigo-500 transition-all" />
+                      <div className="grid grid-cols-2 gap-3">
+                        <input type="text" placeholder="MM/YY" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-sm outline-none focus:border-indigo-500 transition-all" />
+                        <input type="password" placeholder="CVV" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-sm outline-none focus:border-indigo-500 transition-all" />
+                      </div>
+                    </div>
                   ) : (
                     <>
-                      <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-indigo-200">
-                        {onlineProvider === 'GPay' ? <SmartphoneNfc className="text-white w-8 h-8" /> : <Wallet className="text-white w-8 h-8" />}
-                      </div>
-                      <p className="text-sm font-bold">Opening {onlineProvider} App...</p>
-                      <button className="mt-4 text-indigo-600 text-xs font-black flex items-center gap-1">
-                        <ExternalLink className="w-3 h-3" /> Retry Redirect
-                      </button>
+                      <QrCode className="w-32 h-32 text-slate-900 dark:text-white mb-4" />
+                      <p className="text-sm font-bold mb-4">Scan QR or use the app below</p>
+                      <a 
+                        href={getUPILink()}
+                        className="bg-indigo-600 text-white px-6 py-3 rounded-xl text-xs font-black flex items-center gap-2 hover:scale-105 transition-all"
+                      >
+                        <ExternalLink className="w-4 h-4" /> Open {onlineProvider} App
+                      </a>
                     </>
                   )}
                 </div>
+
+                {error && (
+                  <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-800 rounded-2xl flex items-center gap-3 text-red-500">
+                    <AlertCircle className="w-5 h-5 shrink-0" />
+                    <p className="text-xs font-bold">{error}</p>
+                  </div>
+                )}
 
                 <button
                   onClick={processOrder}
@@ -138,6 +182,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, i
                     "I have completed the payment"
                   )}
                 </button>
+                <p className="text-center text-[10px] text-slate-400 font-bold mt-4 uppercase tracking-widest">
+                  Secure 256-bit SSL Encrypted Payment
+                </p>
               </div>
             ) : (
               <>
